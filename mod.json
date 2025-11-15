@@ -1,0 +1,20 @@
+{
+	"geode": "4.9.0",
+	"gd": {
+		"win": "2.2074",
+		"android": "2.2074",
+		"mac": "2.2074",
+		"ios": "2.2074"
+	},
+	"id": "prevter.profiler",
+	"name": "Profiler",
+	"version": "v1.0.0",
+	"developer": "prevter",
+	"description": "Integrated profiler mod for devs",
+	"dependencies": {
+		"geode.custom-keybinds": {
+			"version": "v1.11.0",
+			"importance": "recommended"
+		}
+	}
+}
