@@ -11,7 +11,7 @@
 using namespace geode::prelude;
 
 $on_mod(Loaded) {
-    platform::init();
+    // platform::init();
 
     using namespace keybinds;
 
@@ -40,22 +40,4 @@ $on_mod(Loaded) {
         }
         return ListenerResult::Propagate;
     }, InvokeBindFilterV2(nullptr, "toggle_profiler"_spr));
-}
-
-$execute {
-    auto profile = fxprof::Profile("Geometry Dash", fxprof::ReferenceTimestamp::now(), fxprof::SamplingInterval::fromMillis(10));
-    profile.setOSName(GEODE_PLATFORM_NAME);
-    auto process = profile.addProcess("GeometryDash.exe", GetCurrentProcessId(), fxprof::Timestamp());
-    auto thread = profile.addThread(process, GetCurrentThreadId(), fxprof::Timestamp(), true);
-    profile.setThreadName(thread, thread::getName());
-
-    profile.addSample(
-        thread,
-        fxprof::Timestamp(),
-        std::nullopt,
-        fxprof::ZERO_DELTA,
-        1
-    );
-
-    (void) file::writeToJson("fxprof_test_profile.json", profile);
 }

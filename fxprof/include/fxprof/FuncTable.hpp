@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 
+#include "Frame.hpp"
 #include "ResourceTable.hpp"
 
 namespace fxprof {

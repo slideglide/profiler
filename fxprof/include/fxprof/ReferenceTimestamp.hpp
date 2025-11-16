@@ -11,6 +11,12 @@ namespace fxprof {
             auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
             return { static_cast<double>(millis) };
         }
+
+        static ReferenceTimestamp fromChrono(std::chrono::system_clock::time_point timePoint) {
+            auto duration = timePoint.time_since_epoch();
+            auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+            return { static_cast<double>(millis) };
+        }
     };
 
     struct PlatformSpecificReferenceTimestamp {

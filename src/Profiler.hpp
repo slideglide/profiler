@@ -2,11 +2,10 @@
 #include <atomic>
 #include <thread>
 #include <vector>
-#include <unordered_map>
-#include <matjson/reflect.hpp>
+#include <unordered_set>
 
+#include <fxprof/Profile.hpp>
 #include "platform/IPlatform.hpp"
-#include "FirefoxProfile.hpp"
 
 class Profiler {
 private:
@@ -34,9 +33,9 @@ public:
         m_running.test_and_set();
         m_samples.clear();
         m_thread = std::thread([this]() {
-            m_startTime = std::chrono::steady_clock::now();
+            m_startTime = std::chrono::system_clock::now();
             platform::captureThread(m_running, m_samples);
-            m_endTime = std::chrono::steady_clock::now();
+            m_endTime = std::chrono::system_clock::now();
         });
         m_isRunning = true;
     }
@@ -51,20 +50,118 @@ public:
     }
 
     void save() {
-        Profile profile;
-        profile.meta.interval = 10; // Sample interval in milliseconds
-        profile.meta.startTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-            m_startTime.time_since_epoch()
-        ).count();
-        profile.meta.endTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-            m_endTime.time_since_epoch()
-        ).count();
+        using namespace fxprof;
+
+        Profile profile(
+            "Geometry Dash",
+            ReferenceTimestamp::fromChrono(m_startTime),
+            SamplingInterval::fromMillis(1)
+        );
+
+        profile.setOSName(GEODE_PLATFORM_NAME);
+
+        auto process = profile.addProcess(
+            "GeometryDash.exe",
+            GetCurrentProcessId(),
+            Timestamp::fromChrono(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                m_startTime.time_since_epoch()
+            ))
+        );
+
+        auto thread = profile.addThread(
+            process,
+            GetCurrentThreadId(),
+            Timestamp::fromChrono(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                m_startTime.time_since_epoch()
+            )),
+            true
+        );
+
+        profile.setThreadName(thread, geode::utils::thread::getName());
+
+        auto category = profile.handleForCategory(
+            Category{ "Other", CategoryColor::Grey }
+        );
+
+        // Collect all unique addresses from samples
+        std::unordered_set<uintptr_t> uniqueAddresses;
+        for (auto const& sample : m_samples) {
+            for (size_t i = 0; i < sample.frameCount; ++i) {
+                uniqueAddresses.insert(sample.frames[i]);
+            }
+        }
+        std::vector<uintptr_t> addressList(uniqueAddresses.begin(), uniqueAddresses.end());
+
+        // enumerate all loaded modules
+        platform::enumerateModules([&](platform::ModuleInfo const& modInfo) {
+            auto libHandle = profile.addLibrary(LibraryInfo{
+                .name = modInfo.name,
+                .path = modInfo.path,
+                .debugName = modInfo.debugName,
+                .debugPath = modInfo.debugPath,
+                .breakpadId = modInfo.breakpadId,
+                .codeId = modInfo.codeId,
+                .arch = modInfo.arch
+            });
+
+            // Load symbols only for addresses we actually captured in this module
+            auto symbols = platform::getModuleSymbols(modInfo.baseAddress, addressList);
+            if (!symbols.empty()) {
+                std::vector<Symbol> fxprofSymbols;
+                fxprofSymbols.reserve(symbols.size());
+                for (auto const& sym : symbols) {
+                    fxprofSymbols.push_back(Symbol{
+                        .name = sym.name,
+                        .size = sym.size,
+                        .address = sym.address
+                    });
+                }
+                profile.setLibSymbolTable(libHandle, SymbolTable(std::move(fxprofSymbols)));
+            }
+
+            profile.addLibMapping(
+                process,
+                libHandle,
+                modInfo.baseAddress,
+                modInfo.baseAddress + modInfo.size,
+                modInfo.relativeAddressAtStart
+            );
+        });
+
+        // Build samples
+        for (auto const& sample : m_samples) {
+            auto stack = profile.handleForStackFrames(
+                thread,
+                [&](Profile& p, size_t i) -> std::optional<FrameHandle> {
+                    if (i >= sample.frameCount) return std::nullopt;
+                    size_t frameIndex = sample.frameCount - 1 - i;
+                    uintptr_t addr = sample.frames[frameIndex];
+                    FrameAddress frameAddr;
+                    if (frameIndex == 0) {
+                        frameAddr = FrameAddress::InstructionPointer{ addr };
+                    } else {
+                        frameAddr = FrameAddress::ReturnAddress{ addr };
+                    }
+                    return p.handleForFrameWithAddress(
+                        thread,
+                        frameAddr,
+                        category,
+                        FrameFlags::None
+                    );
+                }
+            );
+
+            profile.addSample(
+                thread,
+                Timestamp::fromMillis(1),
+                stack,
+                ZERO_DELTA,
+                1
+            );
+        }
 
         // export to json
-        (void) geode::utils::file::writeToJson(
-            "profiler.json",
-            profile
-        );
+        (void) geode::utils::file::writeToJson("profiler.json", profile);
     }
 
     [[nodiscard]] bool isRunning() const {
@@ -74,7 +171,7 @@ public:
 private:
     std::thread m_thread;
     std::atomic_flag m_running = ATOMIC_FLAG_INIT;
-    std::chrono::steady_clock::time_point m_startTime{}, m_endTime{};
+    std::chrono::system_clock::time_point m_startTime{}, m_endTime{};
     std::vector<platform::StackSample> m_samples;
     bool m_isRunning = false;
 };
