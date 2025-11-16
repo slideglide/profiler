@@ -251,6 +251,12 @@ namespace fxprof {
 template <>
 struct matjson::Serialize<fxprof::FrameTable> {
     static Value toJson(fxprof::FrameTable const& value) {
+        std::vector<Value> addressCol;
+        addressCol.reserve(value.getAddressColumns().size());
+        for (auto const& addr : value.getAddressColumns()) {
+            addressCol.push_back(addr.has_value() ? Value(*addr) : Value(-1));
+        }
+
         return makeObject({
             {"length", value.getFuncColumns().size()},
             {"func", value.getFuncColumns()},
@@ -258,7 +264,7 @@ struct matjson::Serialize<fxprof::FrameTable> {
             {"subcategory", value.getSubcategoryColumns()},
             {"line", value.getLineColumns()},
             {"column", value.getColumnColumns()},
-            {"address", value.getAddressColumns()},
+            {"address", std::move(addressCol)},
             {"nativeSymbol", value.getNativeSymbolColumns()},
             {"inlineDepth", value.getInlineDepthColumns()},
             {"innerWindowID", std::vector<Value>(value.getFuncColumns().size(), 0)}

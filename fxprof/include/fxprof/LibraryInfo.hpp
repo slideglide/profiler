@@ -50,7 +50,7 @@ namespace fxprof {
         }
 
         std::optional<std::reference_wrapper<Symbol const>> lookup(uint32_t address) const {
-            auto it = std::ranges::lower_bound(
+            auto it = std::ranges::upper_bound(
                 m_symbols, address, {}, &Symbol::address
             );
             if (it == m_symbols.begin()) {

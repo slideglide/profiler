@@ -75,8 +75,8 @@ namespace fxprof {
             auto& libHandle = addr->second;
             auto libIndex = globalLibs.indexForUsedLib(libHandle, stringTable);
             return InternalFrameAddress{
-                .offset = addr->first,
                 .library = libIndex,
+                .offset = addr->first,
                 .type = InternalFrameAddress::Type::InLib
             };
         }
