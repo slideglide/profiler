@@ -39,22 +39,7 @@ namespace fxprof {
         }
     };
 
-    struct SourceLocation {
-        std::optional<StringHandle> filePath;
-        std::optional<uint32_t> line;
-        std::optional<uint32_t> column;
-    };
 
-    struct FrameSymbolInfo {
-        std::optional<StringHandle> name;
-        NativeSymbolHandle nativeSymbol;
-        SourceLocation sourceLocation;
-    };
-
-    struct FrameHandle {
-        ThreadHandle thread;
-        size_t index;
-    };
 
     struct StackHandle {
         ThreadHandle thread;
@@ -73,7 +58,7 @@ namespace fxprof {
             ReferenceTimestamp referenceTimestamp,
             SamplingInterval interval
         ) : m_product(std::move(product)), m_interval(interval), m_referenceTimestamp(referenceTimestamp) {
-            m_categories.insert(InternalCategory("Other", CategoryColor::Gray));
+            m_categories.insert(InternalCategory("Other", CategoryColor::Grey));
         }
 
         void setInterval(SamplingInterval interval) { m_interval = interval; }
@@ -98,6 +83,10 @@ namespace fxprof {
             auto handle = m_threads.size();
             m_threads.emplace_back(process, std::move(uTid), startTime, isMain);
             m_processes[process].addThread(handle, isMain);
+            if (isMain) {
+                m_initialVisibleThreads.push_back(handle);
+                m_initialSelectedThreads.push_back(handle);
+            }
             return handle;
         }
 
@@ -108,11 +97,99 @@ namespace fxprof {
             CpuDelta cpuDelta,
             int32_t weight
         ) {
-            // find stack index
             std::optional<size_t> stackIndex = stack.has_value() ? std::optional(stack->index) : std::nullopt;
             m_threads[thread].addSample(timestamp, stackIndex, cpuDelta, weight);
         }
 
+        template <typename F> requires (std::is_invocable_r_v<std::optional<FrameHandle>, F, Profile&, size_t>)
+        std::optional<StackHandle> handleForStackFrames(ThreadHandle thread, F&& framesIter) {
+            std::optional<size_t> prefix;
+
+            size_t index = 0;
+            while (std::optional<FrameHandle> next = framesIter(*this, index++)) {
+                prefix = m_threads[thread].stackIndexForStack(prefix, next->index);
+            }
+
+            if (!prefix.has_value()) {
+                return std::nullopt;
+            }
+
+            return StackHandle(thread, *prefix);
+        }
+
+        CategoryHandle handleForCategory(Category const& category) {
+            return m_categories.insert(InternalCategory{
+                std::string(category.name), category.color
+            }).first;
+        }
+
+        template <typename S>
+        FrameHandle handleForFrameWithAddress(
+            ThreadHandle thread,
+            FrameAddress address,
+            S subcategory,
+            FrameFlags flags
+        ) {
+            SubcategoryHandle handle{};
+            if constexpr (std::is_same_v<S, Category>) {
+                handle = { this->handleForCategory(subcategory), 0 };
+            } else if constexpr (std::is_same_v<S, CategoryHandle>) {
+                handle = { subcategory, 0 };
+            } else if constexpr (std::is_same_v<S, SubcategoryHandle>) {
+                handle = subcategory;
+            } else {
+                static_assert(sizeof(S) != sizeof(S), "Unsupported subcategory type");
+            }
+
+            return this->handleForFrameWithAddressInternal(thread, address, handle, flags);
+        }
+
+        FrameHandle handleForFrameWithAddressInternal(
+            ThreadHandle thread,
+            FrameAddress frameAddress,
+            SubcategoryHandle subcategory,
+            FrameFlags flags
+        ) {
+            auto& t = m_threads[thread];
+            auto& p = m_processes[t.getProcess()];
+
+            StringHandle name;
+            InternalFrameVariant variant;
+            auto address = this->resolveFrameAddress(p, frameAddress);
+            if (address.type == InternalFrameAddress::Type::InLib) {
+                // TODO
+                std::abort();
+            } else {
+                name = m_stringTable.indexForHexAddress(address.address);
+                variant = LabelFrame{};
+            }
+
+            return {thread, t.frameIndexForFrame({
+                name,
+                variant,
+                subcategory,
+                SourceLocation(),
+                flags
+            })};
+        }
+
+        InternalFrameAddress resolveFrameAddress(
+            Process& process,
+            FrameAddress const& frameAddress
+        ) {
+            return std::visit([&](auto&& addr) {
+                using T = std::decay_t<decltype(addr)>;
+                if constexpr (std::is_same_v<T, FrameAddress::InstructionPointer>) {
+                    return process.convertAddress(m_globalLibs, m_kernelLibs, m_stringTable, addr.value);
+                } else if constexpr (std::is_same_v<T, FrameAddress::ReturnAddress>) {
+                    uintptr_t adjustedAddress = addr.value > 0 ? addr.value - 1 : 0;
+                    return process.convertAddress(m_globalLibs, m_kernelLibs, m_stringTable, adjustedAddress);
+                } else {
+                    // TODO: Implement other variants
+                    return InternalFrameAddress{.address = 0, .type = InternalFrameAddress::Type::Unknown };
+                }
+            }, frameAddress.address);
+        }
 
         void setThreadName(ThreadHandle thread, std::string name) {
             m_threads[thread].setName(std::move(name));
@@ -195,7 +272,7 @@ namespace fxprof {
         TimelineUnit m_timelineUnit = TimelineUnit::Milliseconds;
         GlobalLibTable m_globalLibs;
         LibMappings<LibraryHandle> m_kernelLibs;
-        std::unordered_set<InternalCategory> m_categories;
+        IndexSet<InternalCategory> m_categories;
         std::vector<Process> m_processes;
         std::vector<Counter> m_counters;
         std::vector<Thread> m_threads;

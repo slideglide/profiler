@@ -1,4 +1,9 @@
 #pragma once
+#include <algorithm>
+#include <optional>
+#include <vector>
+#include <matjson.hpp>
+#include <matjson/std.hpp>
 
 namespace fxprof {
     struct LibraryInfo {

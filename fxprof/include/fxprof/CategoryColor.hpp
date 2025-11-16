@@ -18,7 +18,7 @@ namespace fxprof {
         Brown,
         Magenta,
         LightGreen,
-        Gray,
+        Grey,
         DarkGray,
     };
 
@@ -36,7 +36,7 @@ namespace fxprof {
             case CategoryColor::Brown:       return "brown";
             case CategoryColor::Magenta:     return "magenta";
             case CategoryColor::LightGreen:  return "lightgreen";
-            case CategoryColor::Gray:        return "gray";
+            case CategoryColor::Grey:        return "grey";
             case CategoryColor::DarkGray:    return "darkgray";
         }
         return "unknown";
@@ -59,7 +59,7 @@ struct matjson::Serialize<fxprof::CategoryColor> {
         if (str == "brown")       return geode::Ok(fxprof::CategoryColor::Brown);
         if (str == "magenta")     return geode::Ok(fxprof::CategoryColor::Magenta);
         if (str == "lightgreen")  return geode::Ok(fxprof::CategoryColor::LightGreen);
-        if (str == "gray")        return geode::Ok(fxprof::CategoryColor::Gray);
+        if (str == "grey")        return geode::Ok(fxprof::CategoryColor::Grey);
         if (str == "darkgray")    return geode::Ok(fxprof::CategoryColor::DarkGray);
         return geode::Err("Invalid CategoryColor string: " + str);
     }

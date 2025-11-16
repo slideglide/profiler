@@ -11,6 +11,11 @@
 namespace fxprof {
     using ProcessHandle = size_t;
 
+    struct FrameHandle {
+        ThreadHandle thread;
+        size_t index;
+    };
+
     class Thread {
     public:
         Thread(
@@ -80,6 +85,14 @@ namespace fxprof {
             m_samples.addSample(timestamp, stackIndex, cpuDelta, weight);
             m_lastSampleStack = stackIndex;
             m_lastSampleWasZeroCpu = cpuDelta == ZERO_DELTA;
+        }
+
+        size_t stackIndexForStack(std::optional<size_t> prefix, size_t frame) {
+            return m_stackTable.indexForStack(prefix, frame);
+        }
+
+        size_t frameIndexForFrame(InternalFrame frame) {
+            return m_frameInterner.indexForFrame(std::move(frame));
         }
 
     private:

@@ -5,14 +5,28 @@
 #include <matjson/std.hpp>
 
 #include "CategoryColor.hpp"
+#include "IndexSet.hpp"
 
 namespace fxprof {
     using CategoryHandle = uint16_t;
     using SubcategoryIndex = uint16_t;
 
+    struct SubcategoryHandle {
+        CategoryHandle category;
+        SubcategoryIndex subcategory;
+        bool operator==(SubcategoryHandle const& subcategory_handle) const = default;
+    };
+
     struct Category {
-        std::string name;
-        CategoryColor color = CategoryColor::Gray;
+        std::string_view name;
+        CategoryColor color = CategoryColor::Grey;
+    };
+
+    constexpr Category OTHER_CATEGORY{"Other", CategoryColor::Grey};
+
+    struct Subcategory {
+        Category category;
+        std::string_view name;
     };
 
     class InternalCategory {
@@ -29,7 +43,7 @@ namespace fxprof {
             return m_color;
         }
 
-        std::unordered_set<std::string> const& subcategories() const {
+        IndexSet<std::string> const& subcategories() const {
             return m_subcategories;
         }
 
@@ -39,8 +53,8 @@ namespace fxprof {
 
     private:
         std::string m_name;
-        CategoryColor m_color = CategoryColor::Gray;
-        std::unordered_set<std::string> m_subcategories;
+        CategoryColor m_color = CategoryColor::Grey;
+        IndexSet<std::string> m_subcategories;
     };
 }
 

@@ -4,13 +4,12 @@
 #include <string>
 #include <vector>
 
+#include "FrameTable.hpp"
 #include "GlobalLibTable.hpp"
 #include "LibMappings.hpp"
 #include "Timestamp.hpp"
 
 namespace fxprof {
-    using ThreadHandle = size_t;
-
     class Process {
     public:
         Process(
@@ -52,6 +51,16 @@ namespace fxprof {
             if (isMain) {
                 m_mainThread = threadHandle;
             }
+        }
+
+        InternalFrameAddress convertAddress(
+            GlobalLibTable& globalLibs,
+            LibMappings<LibraryHandle>& kernelLibs,
+            ProfileStringTable& stringTable,
+            uint64_t address
+        ) {
+            // TODO
+            return InternalFrameAddress{.address = address, .type = InternalFrameAddress::Type::Unknown};
         }
 
     private:

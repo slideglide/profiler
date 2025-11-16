@@ -48,7 +48,7 @@ struct matjson::Serialize<fxprof::ResourceTable> {
             {"length", value.getResourceLibs().size()},
             {"lib", value.getResourceLibs()},
             {"name", value.getResourceNames()},
-            {"host", std::vector<Value>(value.getResourceLibs().size(), Value())},
+            {"host", std::vector<Value>(value.getResourceLibs().size(), nullptr)},
             {"type", std::vector<Value>(value.getResourceLibs().size(), RESOURCE_TYPE_LIB)},
         });
     }
