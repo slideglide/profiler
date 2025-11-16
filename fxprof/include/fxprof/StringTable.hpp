@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include <fmt/format.h>
 
 namespace fxprof {
     using StringIndex = uint32_t;

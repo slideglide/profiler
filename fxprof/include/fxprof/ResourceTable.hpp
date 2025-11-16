@@ -1,4 +1,10 @@
 #pragma once
+#include <cstdint>
+#include <unordered_map>
+#include <matjson.hpp>
+#include <matjson/std.hpp>
+#include <matjson/stl_serialize.hpp>
+
 #include "GlobalLibTable.hpp"
 
 namespace fxprof {

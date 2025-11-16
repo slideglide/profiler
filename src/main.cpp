@@ -6,7 +6,7 @@
 #include "Profiler.hpp"
 #include "platform/IPlatform.hpp"
 
-#include "fxprof/Profile.hpp"
+#include <fxprof/Profile.hpp>
 
 using namespace geode::prelude;
 

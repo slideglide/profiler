@@ -27,3 +27,10 @@ struct std::hash<fxprof::GlobalLibIndex> {
         return h1 ^ (h2 << 1);
     }
 };
+
+template <>
+struct matjson::Serialize<fxprof::GlobalLibIndex> {
+    static Value toJson(fxprof::GlobalLibIndex const& libIndex) {
+        return libIndex.index;
+    }
+};

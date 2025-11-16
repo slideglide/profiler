@@ -1,4 +1,9 @@
 #pragma once
+#include <string>
+#include <unordered_set>
+#include <matjson.hpp>
+#include <matjson/std.hpp>
+
 #include "CategoryColor.hpp"
 
 namespace fxprof {
