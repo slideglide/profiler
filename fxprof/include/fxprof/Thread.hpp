@@ -95,6 +95,18 @@ namespace fxprof {
             return m_frameInterner.indexForFrame(std::move(frame));
         }
 
+        std::pair<NativeSymbolIndex, StringHandle> nativeSymbolIndexAndStringIndexForSymbol(
+            GlobalLibIndex libIndex,
+            Symbol const& symbol,
+            ProfileStringTable& stringTable
+        ) {
+            return m_nativeSymbols.symbolIndexAndStringIndexForSymbol(
+                libIndex,
+                symbol,
+                stringTable
+            );
+        }
+
     private:
         ProcessHandle m_process = 0;
         std::string m_tid;
@@ -106,7 +118,7 @@ namespace fxprof {
         SampleTable m_samples;
         // std::optional<NativeAllocationsTable> m_nativeAllocations;
         MarkerTable m_markers;
-        // NativeSymbols m_nativeSymbols;
+        NativeSymbols m_nativeSymbols;
         std::optional<size_t> m_lastSampleStack;
         bool m_lastSampleWasZeroCpu = false;
         bool m_showMarkersInTimeline = false;

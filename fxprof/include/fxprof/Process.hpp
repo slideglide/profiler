@@ -53,14 +53,32 @@ namespace fxprof {
             }
         }
 
+        void addLibMapping(LibraryHandle lib, uint64_t startAVMA, uint64_t endAVMA, uint32_t relativeAddressAtStart) {
+            m_libs.addMapping(startAVMA, endAVMA, relativeAddressAtStart, lib);
+        }
+
         InternalFrameAddress convertAddress(
             GlobalLibTable& globalLibs,
-            LibMappings<LibraryHandle>& kernelLibs,
+            LibMappings<LibraryHandle> const& kernelLibs,
             ProfileStringTable& stringTable,
             uint64_t address
-        ) {
-            // TODO
-            return InternalFrameAddress{.address = address, .type = InternalFrameAddress::Type::Unknown};
+        ) const {
+            auto addr = kernelLibs.convertAddress(address);
+            if (!addr.has_value()) {
+                addr = m_libs.convertAddress(address);
+            }
+
+            if (!addr.has_value()) {
+                return InternalFrameAddress{.address = address, .type = InternalFrameAddress::Type::Unknown};
+            }
+
+            auto& libHandle = addr->second;
+            auto libIndex = globalLibs.indexForUsedLib(libHandle, stringTable);
+            return InternalFrameAddress{
+                .offset = addr->first,
+                .library = libIndex,
+                .type = InternalFrameAddress::Type::InLib
+            };
         }
 
     private:

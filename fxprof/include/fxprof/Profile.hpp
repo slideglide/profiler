@@ -90,6 +90,26 @@ namespace fxprof {
             return handle;
         }
 
+        LibraryHandle addLibrary(LibraryInfo library) {
+            return m_globalLibs.handleForLib(std::move(library));
+        }
+
+        void setLibSymbolTable(LibraryHandle libHandle, SymbolTable symbolTable) {
+            m_globalLibs.setLibSymbolTable(libHandle, std::move(symbolTable));
+        }
+
+        void addLibMapping(
+            ProcessHandle process,
+            LibraryHandle lib,
+            uint64_t startAVMA,
+            uint64_t endAVMA,
+            uint32_t relativeAddressAtStart
+        ) {
+            m_processes[process].addLibMapping(
+                lib, startAVMA, endAVMA, relativeAddressAtStart
+            );
+        }
+
         void addSample(
             ThreadHandle thread,
             Timestamp timestamp,
@@ -146,7 +166,7 @@ namespace fxprof {
 
         FrameHandle handleForFrameWithAddressInternal(
             ThreadHandle thread,
-            FrameAddress frameAddress,
+            FrameAddress const& frameAddress,
             SubcategoryHandle subcategory,
             FrameFlags flags
         ) {
@@ -157,8 +177,29 @@ namespace fxprof {
             InternalFrameVariant variant;
             auto address = this->resolveFrameAddress(p, frameAddress);
             if (address.type == InternalFrameAddress::Type::InLib) {
-                // TODO
-                std::abort();
+                auto symbolTable = m_globalLibs.getLibSymbolTable(address.library);
+                auto symbol = symbolTable.has_value()
+                    ? symbolTable->get().lookup(address.offset)
+                    : std::nullopt;
+
+                std::optional<NativeSymbolIndex> nativeSymbol;
+                if (symbol.has_value()) {
+                    std::tie(nativeSymbol, name) = t.nativeSymbolIndexAndStringIndexForSymbol(
+                        address.library,
+                        symbol->get(),
+                        m_stringTable
+                    );
+                } else {
+                    nativeSymbol = std::nullopt;
+                    name = m_stringTable.indexForHexAddress(address.offset);
+                }
+
+                variant = NativeFrameData{
+                    address.library,
+                    nativeSymbol,
+                    address.offset,
+                    0
+                };
             } else {
                 name = m_stringTable.indexForHexAddress(address.address);
                 variant = LabelFrame{};
@@ -186,6 +227,7 @@ namespace fxprof {
                     return process.convertAddress(m_globalLibs, m_kernelLibs, m_stringTable, adjustedAddress);
                 } else {
                     // TODO: Implement other variants
+                    std::abort();
                     return InternalFrameAddress{.address = 0, .type = InternalFrameAddress::Type::Unknown };
                 }
             }, frameAddress.address);
@@ -294,7 +336,7 @@ struct matjson::Serialize<fxprof::Profile> {
     static Value toJson(fxprof::Profile const& value) {
         return makeObject({
             {"meta", value.serializeMeta()},
-            // {"libs", value.getGlobalLibs()},
+            {"libs", value.getGlobalLibs()},
             {"shared", value.serializeShared()},
             {"threads", value.serializeThreads()},
             {"pages", Value::array()},
