@@ -6,6 +6,7 @@ namespace platform {
     void init();
 
     struct StackSample {
+        std::chrono::steady_clock::time_point timestamp;
         std::array<uintptr_t, MAX_STACK_FRAMES> frames;
         size_t frameCount;
     };
@@ -29,6 +30,9 @@ namespace platform {
         std::optional<uint32_t> size;
     };
 
+    std::optional<uintptr_t> moduleBaseFromAddress(uintptr_t address);
+    std::optional<ModuleInfo> moduleInfoFromBase(uintptr_t baseAddress);
+
     std::vector<FunctionSymbol> getModuleSymbols(uintptr_t baseAddress, std::vector<uintptr_t> const& addresses);
 
     void captureThread(
@@ -40,34 +44,3 @@ namespace platform {
         std::function<void(ModuleInfo const&)> const& callback
     );
 }
-
-template<>
-struct matjson::Serialize<platform::StackSample> {
-    static geode::Result<platform::StackSample> fromJson(Value const& value) {
-        platform::StackSample sample;
-        if (!value.isArray()) {
-            return geode::Err("Expected array for StackSample");
-        }
-        size_t count = value.size();
-        if (count > MAX_STACK_FRAMES) {
-            return geode::Err("StackSample array size exceeds MAX_STACK_FRAMES");
-        }
-        sample.frameCount = count;
-        for (size_t i = 0; i < count; ++i) {
-            auto frameValue = value[i];
-            if (!frameValue.isNumber()) {
-                return geode::Err("Expected number for StackSample frame");
-            }
-            sample.frames[i] = frameValue.asUInt().unwrapOrDefault();
-        }
-        return geode::Ok(sample);
-    }
-
-    static Value toJson(platform::StackSample const& value) {
-        auto arr = Value::array();
-        for (size_t i = 0; i < value.frameCount; ++i) {
-            arr.push(value.frames[i]);
-        }
-        return arr;
-    }
-};

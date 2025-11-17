@@ -2,6 +2,7 @@
 #include <atomic>
 #include <thread>
 #include <vector>
+#include <unordered_map>
 #include <unordered_set>
 
 #include <fxprof/Profile.hpp>
@@ -87,25 +88,39 @@ public:
         std::unordered_set<uintptr_t> uniqueAddresses;
         for (auto const& sample : m_samples) {
             for (size_t i = 0; i < sample.frameCount; ++i) {
-                uniqueAddresses.insert(sample.frames[i]);
+                if (sample.frames[i] != 0) {
+                    uniqueAddresses.insert(sample.frames[i]);
+                }
             }
         }
-        std::vector<uintptr_t> addressList(uniqueAddresses.begin(), uniqueAddresses.end());
 
-        // enumerate all loaded modules
-        platform::enumerateModules([&](platform::ModuleInfo const& modInfo) {
+        std::unordered_map<uintptr_t, std::vector<uintptr_t>> moduleAddressBuckets;
+        moduleAddressBuckets.reserve(uniqueAddresses.size());
+        for (auto addr : uniqueAddresses) {
+            auto base = platform::moduleBaseFromAddress(addr);
+            if (!base) {
+                continue;
+            }
+            moduleAddressBuckets[*base].push_back(addr);
+        }
+
+        for (auto& [baseAddress, addrs] : moduleAddressBuckets) {
+            auto modInfo = platform::moduleInfoFromBase(baseAddress);
+            if (!modInfo) {
+                continue;
+            }
+
             auto libHandle = profile.addLibrary(LibraryInfo{
-                .name = modInfo.name,
-                .path = modInfo.path,
-                .debugName = modInfo.debugName,
-                .debugPath = modInfo.debugPath,
-                .breakpadId = modInfo.breakpadId,
-                .codeId = modInfo.codeId,
-                .arch = modInfo.arch
+                .name = modInfo->name,
+                .path = modInfo->path,
+                .debugName = modInfo->debugName,
+                .debugPath = modInfo->debugPath,
+                .breakpadId = modInfo->breakpadId,
+                .codeId = modInfo->codeId,
+                .arch = modInfo->arch
             });
 
-            // Load symbols only for addresses we actually captured in this module
-            auto symbols = platform::getModuleSymbols(modInfo.baseAddress, addressList);
+            auto symbols = platform::getModuleSymbols(modInfo->baseAddress, addrs);
             if (!symbols.empty()) {
                 std::vector<Symbol> fxprofSymbols;
                 fxprofSymbols.reserve(symbols.size());
@@ -122,13 +137,22 @@ public:
             profile.addLibMapping(
                 process,
                 libHandle,
-                modInfo.baseAddress,
-                modInfo.baseAddress + modInfo.size,
-                modInfo.relativeAddressAtStart
+                modInfo->baseAddress,
+                modInfo->baseAddress + modInfo->size,
+                modInfo->relativeAddressAtStart
             );
-        });
+        }
+
+        profile.addSample(
+            thread,
+            Timestamp::fromMillis(0),
+            std::nullopt,
+            ZERO_DELTA,
+            1
+        );
 
         // Build samples
+        std::chrono::steady_clock::time_point lastSample{};
         for (auto const& sample : m_samples) {
             auto stack = profile.handleForStackFrames(
                 thread,
@@ -151,9 +175,19 @@ public:
                 }
             );
 
+            // calculate passed time since last sample
+            double delta = 1.0;
+            if (lastSample == std::chrono::steady_clock::time_point{}) {
+                lastSample = sample.timestamp;
+            } else {
+                auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(sample.timestamp - lastSample);
+                delta = static_cast<double>(duration.count()) / 1'000'000.0;
+                lastSample = sample.timestamp;
+            }
+
             profile.addSample(
                 thread,
-                Timestamp::fromMillis(1),
+                Timestamp::fromMillis(delta),
                 stack,
                 ZERO_DELTA,
                 1

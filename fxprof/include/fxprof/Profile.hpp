@@ -191,7 +191,11 @@ namespace fxprof {
                     );
                 } else {
                     nativeSymbol = std::nullopt;
-                    name = m_stringTable.indexForHexAddress(address.offset);
+                    name = m_stringTable.indexForString(fmt::format(
+                        "{}+0x{:x}",
+                        m_globalLibs.getLibInfo(address.library).name,
+                        address.offset
+                    ));
                 }
 
                 variant = NativeFrameData{

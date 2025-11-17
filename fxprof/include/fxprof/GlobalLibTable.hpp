@@ -52,6 +52,11 @@ namespace fxprof {
             return index;
         }
 
+        LibraryInfo const& getLibInfo(GlobalLibIndex libIndex) const {
+            LibraryHandle handle = m_usedLibs[libIndex.index];
+            return m_allLibs.vec()[handle];
+        }
+
     private:
         IndexSet<LibraryInfo, LibraryInfo::Hash> m_allLibs;
         std::unordered_map<LibraryHandle, SymbolTable> m_symbolTables;

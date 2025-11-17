@@ -96,6 +96,8 @@ namespace platform {
             if (GetThreadContext(hThread, &ctx)) {
                 StackSample sample = {};
 
+                sample.timestamp = std::chrono::steady_clock::now();
+
                 STACKFRAME64 frame = {};
                 frame.AddrPC.Offset = ctx.Rip;
                 frame.AddrPC.Mode = AddrModeFlat;
@@ -213,5 +215,58 @@ namespace platform {
         }
 
         return symbols;
+    }
+
+    std::optional<uintptr_t> moduleBaseFromAddress(uintptr_t address) {
+        init();
+        HANDLE hProcess = GetCurrentProcess();
+        auto base = ModuleBase(hProcess, address);
+        if (base == 0) {
+            return std::nullopt;
+        }
+        return base;
+    }
+
+    std::optional<ModuleInfo> moduleInfoFromBase(uintptr_t baseAddress) {
+        HANDLE hProcess = GetCurrentProcess();
+        auto module = reinterpret_cast<HMODULE>(baseAddress);
+        if (module == nullptr) {
+            return std::nullopt;
+        }
+
+        MODULEINFO modInfo;
+        if (GetModuleInformation(hProcess, module, &modInfo, sizeof(modInfo)) == 0) {
+            return std::nullopt;
+        }
+
+        char modName[MAX_PATH];
+        char modPath[MAX_PATH];
+        char debugName[MAX_PATH];
+        char debugPath[MAX_PATH];
+
+        if (GetModuleFileNameExA(hProcess, module, modPath, sizeof(modPath)) == 0) {
+            return std::nullopt;
+        }
+
+        if (GetModuleBaseNameA(hProcess, module, modName, sizeof(modName)) == 0) {
+            return std::nullopt;
+        }
+
+        strcpy_s(debugName, modName);
+        strcpy_s(debugPath, modPath);
+
+        ModuleInfo info;
+        info.name = modName;
+        info.path = modPath;
+        info.debugName = debugName;
+        info.debugPath = debugPath;
+        info.breakpadId = "";
+        info.codeId = std::nullopt;
+        info.arch = "x86_64";
+        info.baseAddress = baseAddress;
+        info.size = static_cast<size_t>(modInfo.SizeOfImage);
+        info.relativeAddressAtStart = 0;
+
+        return info;
     }
 }
